@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
+
 import { motion } from 'framer-motion';
 import { Wand2, Copy, Save, Download, Sparkles, RotateCcw, Lightbulb } from 'lucide-react';
 import axios from 'axios';
@@ -6,17 +8,86 @@ import axios from 'axios';
 const PromptEditor = () => {
   const [prompt, setPrompt] = useState('');
   const [optimizedPrompt, setOptimizedPrompt] = useState('');
+  const [translatedPrompt, setTranslatedPrompt] = useState('');
+  const [optimizedTranslatedPrompt, setOptimizedTranslatedPrompt] = useState('');
+  const [translateDirection, setTranslateDirection] = useState('auto'); // auto | zh2en | en2zh
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState('');
+  const [isOptimizedTranslating, setIsOptimizedTranslating] = useState(false);
+  const [optimizedTranslateError, setOptimizedTranslateError] = useState('');
+
+  // 简单自动识别：包含中文则视为中→英，否则视为英→中
+  const detectDirection = (text) => {
+    if (!text || !text.trim()) return 'zh2en';
+    const hasChinese = /[\u4e00-\u9fff]/.test(text);
+    return hasChinese ? 'zh2en' : 'en2zh';
+  };
+
+
   const [templates, setTemplates] = useState([]);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
 
-  const promptElements = {
-    subjects: ['人物', '风景', '建筑', '动物', '抽象', '静物'],
-    styles: ['写实主义', '印象派', '赛博朋克', '蒸汽朋克', '极简主义', '超现实主义'],
-    moods: ['宁静', '神秘', '欢快', '忧郁', '史诗', '梦幻'],
-    lighting: ['柔和光线', '戏剧性光线', '霓虹灯', '自然光', '逆光', '黄金时刻'],
-    quality: ['8K', '超高清', '精细细节', '电影级', '专业摄影', '杰作'],
+  const defaultPromptElements = {
+    styles: [
+      '写实主义',
+      '印象派',
+      '赛博朋克',
+      '蒸汽朋克',
+      '极简主义',
+      '超现实主义',
+      '复古风',
+      '国风（中式美学）',
+      '二次元（动漫风）',
+      '哥特风',
+      '波普艺术',
+      '洛可可风格',
+    ],
+    moods: ['宁静', '神秘', '欢快', '忧郁', '史诗', '梦幻', '治愈', '紧张', '复古', '温馨', '诡异', '热血'],
+    lighting: [
+      '柔和光线',
+      '戏剧性光线',
+      '霓虹灯',
+      '自然光',
+      '逆光',
+      '黄金时刻',
+      '侧光',
+      '顶光',
+      '暖光',
+      '冷光',
+      '柔光箱光',
+      '轮廓光',
+    ],
+    quality: [
+      '8K',
+      '超高清',
+      '精细细节',
+      '电影级',
+      '专业摄影',
+      '杰作',
+      '高清（1080P）',
+      '4K',
+      '商业级',
+      '艺术级',
+      '高质感',
+      '细腻画质',
+    ],
+    artists: [
+      '梵高',
+      '莫奈',
+      '毕加索',
+      '达·芬奇',
+      '克林姆特',
+      '霍珀',
+      '吉卜力风',
+      '宫崎骏',
+      '新海诚',
+      '安塞尔·亚当斯',
+      '班克斯（街头涂鸦）',
+    ],
   };
+
+  const [promptElements, setPromptElements] = useState(defaultPromptElements);
 
   const tips = [
     '使用逗号分隔不同的描述元素',
@@ -29,6 +100,82 @@ const PromptEditor = () => {
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  useEffect(() => {
+    const fetchPromptElements = async () => {
+      try {
+        const res = await axios.get('/api/prompt-elements');
+        if (res.data) {
+          setPromptElements(res.data);
+        }
+      } catch (error) {
+        console.warn('获取快速元素配置失败，使用默认值:', error?.message || error);
+        setPromptElements(defaultPromptElements);
+      }
+    };
+
+    fetchPromptElements();
+  }, []);
+
+  const doTranslate = useDebouncedCallback(async (text, direction) => {
+    if (!text || !text.trim()) {
+      setTranslatedPrompt('');
+      setTranslateError('');
+      return;
+    }
+
+    const finalDirection = direction === 'auto' ? detectDirection(text) : direction;
+
+    try {
+      setIsTranslating(true);
+      setTranslateError('');
+      const res = await axios.post('/api/translate', {
+        text,
+        direction: finalDirection,
+      });
+      setTranslatedPrompt(res.data?.translatedText || '');
+    } catch (error) {
+      console.error('翻译失败:', error?.response?.data || error?.message || error);
+      setTranslateError('翻译失败，请稍后重试');
+    } finally {
+      setIsTranslating(false);
+    }
+  }, 600);
+
+  const doTranslateOptimized = useDebouncedCallback(async (text, direction) => {
+    if (!text || !text.trim()) {
+      setOptimizedTranslatedPrompt('');
+      setOptimizedTranslateError('');
+      return;
+    }
+
+    const finalDirection = direction === 'auto' ? detectDirection(text) : direction;
+
+    try {
+      setIsOptimizedTranslating(true);
+      setOptimizedTranslateError('');
+      const res = await axios.post('/api/translate', {
+        text,
+        direction: finalDirection,
+      });
+      setOptimizedTranslatedPrompt(res.data?.translatedText || '');
+    } catch (error) {
+      console.error('优化提示词翻译失败:', error?.response?.data || error?.message || error);
+      setOptimizedTranslateError('翻译失败，请稍后重试');
+    } finally {
+      setIsOptimizedTranslating(false);
+    }
+  }, 600);
+
+  useEffect(() => {
+    doTranslate(prompt, translateDirection);
+  }, [prompt, translateDirection, doTranslate]);
+
+  useEffect(() => {
+    doTranslateOptimized(optimizedPrompt, translateDirection);
+  }, [optimizedPrompt, translateDirection, doTranslateOptimized]);
+
+
 
   const fetchTemplates = async () => {
     try {
@@ -111,19 +258,111 @@ const PromptEditor = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Editor */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Prompt Input */}
+            {/* Prompt Input + 双栏翻译 */}
             <div className="card p-6 bg-slate-950/80 border border-emerald-700/60">
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-emerald-50">
                 <Sparkles className="w-5 h-5 text-amber-300" />
-                编写提示词
+                编写提示词 · 中英互译
               </h2>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="在这里输入你的AI绘画提示词... 例如：a beautiful sunset over mountains, oil painting style, warm colors"
-                className="textarea-field h-40 mb-4 bg-slate-900/80 border-emerald-700/60 text-emerald-50 placeholder:text-emerald-400/60"
-              />
+
+              {/* 方向切换 */}
+              <div className="flex items-center gap-3 mb-3 text-xs text-emerald-200">
+                <span className="hidden sm:inline">翻译方向：</span>
+                <div className="inline-flex rounded-full bg-slate-900/80 border border-emerald-700/60 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setTranslateDirection('auto')}
+                    className={`px-3 py-1 transition-colors ${
+                      translateDirection === 'auto'
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-emerald-200 hover:bg-emerald-800/60'
+                    }`}
+                  >
+                    自动
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTranslateDirection('zh2en')}
+                    className={`px-3 py-1 transition-colors ${
+                      translateDirection === 'zh2en'
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-emerald-200 hover:bg-emerald-800/60'
+                    }`}
+                  >
+                    中 → 英
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTranslateDirection('en2zh')}
+                    className={`px-3 py-1 transition-colors ${
+                      translateDirection === 'en2zh'
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-emerald-200 hover:bg-emerald-800/60'
+                    }`}
+                  >
+                    英 → 中
+                  </button>
+                </div>
+
+                {isTranslating && (
+                  <span className="text-amber-300 text-[11px]">翻译中…</span>
+                )}
+                {translateError && (
+                  <span className="text-red-400 text-[11px]">{translateError}</span>
+                )}
+              </div>
+
+              {/* 双栏编辑区 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1 text-xs text-emerald-200 h-8">
+                    <span>
+                      {translateDirection === 'zh2en'
+                        ? '中文 / 原文'
+                        : translateDirection === 'en2zh'
+                        ? '英文 / 原文'
+                        : '中文或英文 / 原文（自动识别）'}
+                    </span>
+                    <span className="opacity-70">实时翻译</span>
+                  </div>
+
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="在这里输入提示词，左侧为原文，右侧为自动翻译"
+                    className="textarea-field h-40 bg-slate-900/80 border-emerald-700/60 text-emerald-50 placeholder:text-emerald-400/60"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1 text-xs text-emerald-200 h-8">
+                    <span>
+                      {translateDirection === 'zh2en'
+                        ? 'English / 翻译结果'
+                        : translateDirection === 'en2zh'
+                        ? '中文 / 翻译结果'
+                        : '翻译结果'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => doTranslate(prompt, translateDirection)}
+
+                      className="px-2 py-1 rounded-full border border-emerald-600 text-[11px] text-emerald-100 hover:bg-emerald-700/40"
+                    >
+                      手动刷新翻译
+                    </button>
+                  </div>
+                  <textarea
+                    value={translatedPrompt}
+                    readOnly
+                    placeholder="翻译结果会自动显示在这里"
+                    className="textarea-field h-40 bg-slate-900/60 border-emerald-700/60 text-emerald-100 placeholder:text-emerald-400/60 cursor-default"
+                  />
+                </div>
+              </div>
+
               <div className="flex flex-wrap gap-3">
+
                 <button onClick={optimizePrompt} className="btn-primary flex items-center gap-2">
                   <Wand2 className="w-4 h-4" />
                   优化提示词
@@ -158,17 +397,61 @@ const PromptEditor = () => {
               >
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-emerald-50">
                   <Sparkles className="w-5 h-5 text-amber-300" />
-                  优化后的提示词
+                  优化后的提示词 · 中英互译
                 </h2>
-                <div className="bg-slate-950/80 rounded-lg p-4 mb-4 border border-emerald-700/60">
-                  <p className="text-emerald-50 font-mono text-sm whitespace-pre-wrap">
-                    {optimizedPrompt}
-                  </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1 text-xs text-emerald-200 h-8">
+                      <span>
+                        {translateDirection === 'zh2en'
+                          ? 'English / 优化后原文'
+                          : translateDirection === 'en2zh'
+                          ? '中文 / 优化后原文'
+                          : '优化后原文'}
+                      </span>
+                    </div>
+                    <textarea
+                      value={optimizedPrompt}
+                      readOnly
+                      className="textarea-field h-32 bg-slate-950/80 border-emerald-700/60 text-emerald-50 placeholder:text-emerald-400/60 cursor-default font-mono text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1 text-xs text-emerald-200 h-8">
+                      <span>
+                        {translateDirection === 'zh2en'
+                          ? '中文 / 翻译结果'
+                          : translateDirection === 'en2zh'
+                          ? 'English / 翻译结果'
+                          : '翻译结果'}
+                      </span>
+                      {optimizedTranslateError && (
+                        <span className="text-red-400 text-[11px]">{optimizedTranslateError}</span>
+                      )}
+                    </div>
+                    <textarea
+                      value={optimizedTranslatedPrompt}
+                      readOnly
+                      placeholder="优化后的提示词的翻译会自动显示在这里"
+                      className="textarea-field h-32 bg-slate-950/60 border-emerald-700/60 text-emerald-100 placeholder:text-emerald-400/60 cursor-default font-mono text-sm"
+                    />
+                  </div>
                 </div>
-                <button onClick={() => copyToClipboard(optimizedPrompt)} className="btn-primary flex items-center gap-2">
-                  <Copy className="w-4 h-4" />
-                  复制优化后的提示词
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button onClick={() => copyToClipboard(optimizedPrompt)} className="btn-primary flex items-center gap-2">
+                    <Copy className="w-4 h-4" />
+                    复制优化后的提示词
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(optimizedTranslatedPrompt)}
+                    className="btn-secondary flex items-center gap-2"
+                    disabled={!optimizedTranslatedPrompt}
+                  >
+                    <Copy className="w-4 h-4" />
+                    复制翻译结果
+                  </button>
+                </div>
               </motion.div>
             )}
 
@@ -183,6 +466,7 @@ const PromptEditor = () => {
                     {category === 'moods' && '氛围'}
                     {category === 'lighting' && '光线'}
                     {category === 'quality' && '质量'}
+                    {category === 'artists' && '艺术家'}
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {elements.map((element) => (

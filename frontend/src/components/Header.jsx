@@ -1,37 +1,59 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Sparkles } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import useLogoImage from '../hooks/useLogoImage';
+
 
 const Header = () => {
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
+  const logoUrl = useLogoImage();
 
   const navItems = [
+
     { path: '/', label: '首页' },
     { path: '/portfolio', label: '作品集' },
     { path: '/prompt-editor', label: 'AI提示词工具' },
     { path: '/blog', label: '博客' },
-    { path: '/admin', label: '管理' },
   ];
+
 
   const isActive = (path) => location.pathname === path;
 
   return (
     <header className="bg-white shadow-md sticky top-0 z-50">
       <nav className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between md:justify-start md:gap-12">
+
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2 group">
-            <div className="bg-gradient-to-r from-primary to-secondary p-2 rounded-lg group-hover:scale-110 transition-transform">
-              <Sparkles className="w-6 h-6 text-white" />
+          <Link to="/" className="flex items-center group">
+            <div className="h-20 md:h-24 flex items-center">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="清寒居 Logo"
+                  className="h-full w-auto object-contain"
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-gray-400">
+                  LOGO
+                </div>
+              )}
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              清寒居
-            </span>
+
+
+
           </Link>
 
+
+
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-10 md:ml-6">
+
+
             {navItems.map((item) => (
               <Link
                 key={item.path}

@@ -7,17 +7,24 @@ import axios from 'axios';
 const BlogPost = () => {
   const { id } = useParams();
   const [post, setPost] = useState(null);
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState({ author_name: '', content: '' });
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState(false);
 
   useEffect(() => {
     fetchPost();
-    fetchComments();
   }, [id]);
 
+  useEffect(() => {
+    if (post && post.wechat_url) {
+      const url = post.wechat_url.trim();
+      if (url) {
+        window.location.href = url;
+      }
+    }
+  }, [post]);
+
   const fetchPost = async () => {
+
     try {
       const response = await axios.get(`/api/posts/${id}`);
       setPost(response.data);
@@ -28,14 +35,7 @@ const BlogPost = () => {
     }
   };
 
-  const fetchComments = async () => {
-    try {
-      const response = await axios.get(`/api/posts/${id}/comments`);
-      setComments(response.data);
-    } catch (error) {
-      console.error('获取评论失败:', error);
-    }
-  };
+
 
   const handleLike = async () => {
     if (liked) return;
@@ -48,22 +48,21 @@ const BlogPost = () => {
     }
   };
 
-  const handleCommentSubmit = async (e) => {
-    e.preventDefault();
-    if (!newComment.author_name || !newComment.content) {
-      alert('请填写姓名和评论内容');
+  const handleOpenWechat = () => {
+    const url = post?.wechat_url && post.wechat_url.trim();
+    if (!url) {
+      alert('该文章暂未配置微信公众号评论链接，请稍后再试。');
       return;
     }
+
     try {
-      await axios.post(`/api/posts/${id}/comments`, newComment);
-      setNewComment({ author_name: '', content: '' });
-      fetchComments();
-      alert('评论发表成功！');
+      window.open(url, '_blank', 'noopener,noreferrer');
     } catch (error) {
-      console.error('发表评论失败:', error);
-      alert('评论发表失败，请重试');
+      console.error('打开微信公众号文章失败:', error);
+      alert('打开微信公众号文章失败，请检查浏览器拦截设置后重试。');
     }
   };
+
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('zh-CN', {
@@ -74,6 +73,79 @@ const BlogPost = () => {
       minute: '2-digit',
     });
   };
+
+  const renderContent = () => {
+    const content = post?.content || '';
+    const trimmed = content.trim();
+
+    if (!trimmed) return null;
+
+    // 微信公众号导入的 HTML 内容
+    if (trimmed.startsWith('<')) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(trimmed, 'text/html');
+        const bodyHtml = doc.body.innerHTML || trimmed;
+
+        return (
+          <div
+            className="prose prose-lg max-w-none mt-8 wechat-content"
+            dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          />
+        );
+      } catch (error) {
+        // 解析失败时降级为纯文本段落
+        return trimmed.split('\n').map((paragraph, index) =>
+          paragraph.trim() ? (
+            <p key={index} className="mb-4 leading-relaxed text-gray-700">
+              {paragraph}
+            </p>
+          ) : null
+        );
+      }
+    }
+
+    // 默认：按 Markdown 风格渲染文本
+    return (
+      <div className="prose prose-lg max-w-none mt-8">
+        {content.split('\n').map((paragraph, index) => {
+          if (paragraph.startsWith('# ')) {
+            return (
+              <h1 key={index} className="text-3xl font-bold mt-8 mb-4">
+                {paragraph.substring(2)}
+              </h1>
+            );
+          } else if (paragraph.startsWith('## ')) {
+            return (
+              <h2 key={index} className="text-2xl font-bold mt-6 mb-3">
+                {paragraph.substring(3)}
+              </h2>
+            );
+          } else if (paragraph.startsWith('### ')) {
+            return (
+              <h3 key={index} className="text-xl font-bold mt-4 mb-2">
+                {paragraph.substring(4)}
+              </h3>
+            );
+          } else if (paragraph.trim().startsWith('-')) {
+            return (
+              <li key={index} className="ml-6">
+                {paragraph.substring(1).trim()}
+              </li>
+            );
+          } else if (paragraph.trim()) {
+            return (
+              <p key={index} className="mb-4 leading-relaxed text-gray-700">
+                {paragraph}
+              </p>
+            );
+          }
+          return null;
+        })}
+      </div>
+    );
+  };
+
 
   if (loading) {
     return (
@@ -155,86 +227,32 @@ const BlogPost = () => {
           </div>
 
           {/* Post Content */}
-          <div className="prose prose-lg max-w-none mt-8">
-            {post.content.split('\n').map((paragraph, index) => {
-              if (paragraph.startsWith('# ')) {
-                return <h1 key={index} className="text-3xl font-bold mt-8 mb-4">{paragraph.substring(2)}</h1>;
-              } else if (paragraph.startsWith('## ')) {
-                return <h2 key={index} className="text-2xl font-bold mt-6 mb-3">{paragraph.substring(3)}</h2>;
-              } else if (paragraph.startsWith('### ')) {
-                return <h3 key={index} className="text-xl font-bold mt-4 mb-2">{paragraph.substring(4)}</h3>;
-              } else if (paragraph.trim().startsWith('-')) {
-                return <li key={index} className="ml-6">{paragraph.substring(1).trim()}</li>;
-              } else if (paragraph.trim()) {
-                return <p key={index} className="mb-4 leading-relaxed text-gray-700">{paragraph}</p>;
-              }
-              return null;
-            })}
-          </div>
+          {renderContent()}
+
         </motion.div>
 
-        {/* Comments Section */}
+        {/* 评论入口：跳转到微信公众号文章 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="card p-8"
+          className="card p-8 mt-6"
         >
-          <h2 className="text-2xl font-bold mb-6">评论区 ({comments.length})</h2>
-
-          {/* Comment Form */}
-          <form onSubmit={handleCommentSubmit} className="mb-8">
-            <div className="mb-4">
-              <input
-                type="text"
-                value={newComment.author_name}
-                onChange={(e) => setNewComment({ ...newComment, author_name: e.target.value })}
-                placeholder="你的名字"
-                className="input-field"
-              />
-            </div>
-            <div className="mb-4">
-              <textarea
-                value={newComment.content}
-                onChange={(e) => setNewComment({ ...newComment, content: e.target.value })}
-                placeholder="写下你的评论..."
-                className="textarea-field h-32"
-              />
-            </div>
-            <button type="submit" className="btn-primary flex items-center gap-2">
-              <Send className="w-4 h-4" />
-              发表评论
-            </button>
-          </form>
-
-          {/* Comments List */}
-          <div className="space-y-6">
-            {comments.length > 0 ? (
-              comments.map((comment) => (
-                <div key={comment.id} className="border-l-4 border-primary/20 pl-6 py-4">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">{comment.author_name}</div>
-                      <div className="text-sm text-gray-500">
-                        {formatDate(comment.created_at)}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-gray-700 leading-relaxed ml-13">
-                    {comment.content}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-gray-500 py-8">
-                暂无评论，来发表第一条评论吧！
-              </p>
-            )}
-          </div>
+          <h2 className="text-2xl font-bold mb-4">评论与讨论</h2>
+          <p className="text-gray-600 mb-6">
+            当前站点的评论功能托管在微信公众号文章下，你可以在公众号中查看全部评论并参与讨论。
+          </p>
+          <button
+            type="button"
+            onClick={handleOpenWechat}
+            className="btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={!post.wechat_url}
+          >
+            <Send className="w-4 h-4" />
+            {post.wechat_url ? '前往公众号查看评论' : '管理员暂未配置评论链接'}
+          </button>
         </motion.div>
+
       </article>
     </div>
   );

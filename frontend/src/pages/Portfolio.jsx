@@ -1,15 +1,25 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, Sparkles } from 'lucide-react';
+import { Eye, Sparkles, Heart } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 
+
 const Portfolio = () => {
+
   const [portfolios, setPortfolios] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedWork, setSelectedWork] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [liking, setLiking] = useState(false);
+  const [likedWorkIds, setLikedWorkIds] = useState(() => new Set());
+  const location = useLocation();
+
 
   const getImageUrls = (thumbUrl) => {
+
+
     if (!thumbUrl) return { thumb: '', full: '', download: '' };
     const match = thumbUrl.match(/\/api\/images\/(\d+)\/thumb/);
     if (!match) {
@@ -39,6 +49,19 @@ const Portfolio = () => {
     fetchPortfolios();
   }, [selectedCategory]);
 
+  useEffect(() => {
+    if (!portfolios.length) return;
+    const searchParams = new URLSearchParams(location.search);
+    const focusId = searchParams.get('focus');
+    if (!focusId) return;
+    const target = portfolios.find((p) => String(p.id) === String(focusId));
+    if (target) {
+      setSelectedWork(target);
+      setSelectedImageIndex(0);
+    }
+  }, [portfolios, location.search]);
+
+
   const fetchPortfolios = async () => {
     setLoading(true);
     try {
@@ -54,7 +77,36 @@ const Portfolio = () => {
     }
   };
 
+  const handleLikeWork = async () => {
+    if (!selectedWork || liking || likedWorkIds.has(selectedWork.id)) return;
+    setLiking(true);
+    try {
+      const response = await axios.post(`/api/portfolios/${selectedWork.id}/like`);
+      const newLikes = response.data?.likes ?? ((selectedWork.likes || 0) + 1);
+
+      setSelectedWork((prev) => (prev ? { ...prev, likes: newLikes } : prev));
+      setPortfolios((prev) =>
+        prev.map((work) =>
+          work.id === selectedWork.id ? { ...work, likes: newLikes } : work
+        )
+      );
+      setLikedWorkIds((prev) => {
+        const next = new Set(prev);
+        next.add(selectedWork.id);
+        return next;
+      });
+    } catch (error) {
+      console.error('点赞作品失败:', error);
+    } finally {
+      setLiking(false);
+    }
+  };
+
+  const hasLikedCurrent = selectedWork ? likedWorkIds.has(selectedWork.id) : false;
+  const currentLikes = selectedWork?.likes ?? 0;
+
   return (
+
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="container mx-auto px-4">
         {/* Header */}
@@ -100,8 +152,12 @@ const Portfolio = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.1 }}
                 className="card group cursor-pointer"
-                onClick={() => setSelectedWork(work)}
+                onClick={() => {
+                  setSelectedWork(work);
+                  setSelectedImageIndex(0);
+                }}
               >
+
                 <div className="relative overflow-hidden aspect-square">
                   {(() => {
                     const urls = getImageUrls(work.image_url);
@@ -135,7 +191,12 @@ const Portfolio = () => {
                     {work.title}
                   </h3>
                   <p className="text-gray-600 line-clamp-2">{work.description}</p>
+                  <div className="mt-4 flex items-center justify-end gap-1 text-sm text-gray-500">
+                    <Heart className="w-4 h-4 text-primary/80" strokeWidth={1.6} />
+                    <span>{work.likes ?? 0}</span>
+                  </div>
                 </div>
+
               </motion.div>
             ))}
           </div>
@@ -154,17 +215,119 @@ const Portfolio = () => {
               onClick={(e) => e.stopPropagation()}
             >
               {(() => {
-                const urls = getImageUrls(selectedWork.image_url);
+                const baseUrls = [];
+                if (selectedWork.image_url) baseUrls.push(selectedWork.image_url);
+                if (selectedWork.extra_images) {
+                  baseUrls.push(
+                    ...selectedWork.extra_images
+                      .split('\n')
+                      .filter((u) => !!u.trim())
+                  );
+                }
+                if (baseUrls.length === 0) return null;
+
+                const imageItems = baseUrls.map((u) => getImageUrls(u));
+                const current = imageItems[selectedImageIndex] || imageItems[0];
+
                 return (
-                  <img
-                    src={urls.full}
-                    alt={selectedWork.title}
-                    className="w-full h-96 object-cover rounded-t-2xl"
-                  />
+                  <div className="relative bg-black rounded-t-2xl flex items-center justify-center">
+                    <img
+                      src={current.full}
+                      alt={selectedWork.title}
+                      className="max-h-[70vh] w-auto object-contain rounded-t-2xl"
+                    />
+                    {/* 水印 LOGO 条 */}
+                    <div className="absolute right-4 bottom-4 select-none pointer-events-none">
+                      <div className="flex items-center gap-1 rounded-full bg-gradient-to-r from-black/70 via-black/50 to-black/70 px-3 py-1 shadow-lg shadow-black/40 border border-white/10">
+                        <span className="inline-block w-2 h-2 rounded-full bg-primary"></span>
+                        <span className="text-[11px] tracking-wide text-white/90">清寒居</span>
+                      </div>
+                    </div>
+
+                    {/* 缩略图选择 */}
+                    {imageItems.length > 1 && (
+                      <div className="absolute bottom-3 left-0 right-0 flex justify-center px-4">
+                        <div className="inline-flex gap-2 px-3 py-2 rounded-lg bg-black/60 backdrop-blur-sm border border-white/20 shadow-md shadow-black/40">
+
+                          {imageItems.map((img, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedImageIndex(idx);
+                              }}
+                              className={`rounded-md overflow-hidden w-14 h-14 ${
+                                idx === selectedImageIndex
+                                  ? 'ring-2 ring-primary shadow-inner'
+                                  : 'opacity-75 hover:opacity-100'
+                              }`}
+                            >
+                              <img
+                                src={img.thumb}
+                                alt={`缩略图${idx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
                 );
               })()}
 
+              {(() => {
+                const baseUrls = [];
+                if (selectedWork.image_url) baseUrls.push(selectedWork.image_url);
+                if (selectedWork.extra_images) {
+                  baseUrls.push(
+                    ...selectedWork.extra_images
+                      .split('\n')
+                      .filter((u) => !!u.trim())
+                  );
+                }
+                if (baseUrls.length === 0) return null;
+                const imageItems = baseUrls.map((u) => getImageUrls(u));
+                const current = imageItems[selectedImageIndex] || imageItems[0];
+
+                return (
+                  <div className="px-8 pt-3">
+                    <div className="flex flex-col gap-3 md:flex-row">
+                      <a
+                        href={current.download}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex flex-1 items-center justify-center rounded-lg border border-primary text-primary py-2 text-sm font-medium hover:bg-primary/5 bg-white transition-colors"
+                      >
+                        下载原图
+                      </a>
+                      <button
+                        type="button"
+                        onClick={handleLikeWork}
+                        disabled={liking || hasLikedCurrent}
+                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors ${
+                          liking || hasLikedCurrent
+                            ? 'border-gray-300 text-gray-400 bg-gray-50'
+                            : 'border-primary text-primary hover:bg-primary/5'
+                        }`}
+                      >
+                        <Heart
+                          className="w-4 h-4"
+                          strokeWidth={1.8}
+                          fill={hasLikedCurrent ? 'currentColor' : 'none'}
+                        />
+                        {hasLikedCurrent ? '已点赞' : '点赞'} ({currentLikes})
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+
               <div className="p-8">
+
                 <div className="flex items-center gap-2 mb-4">
                   <span className="px-3 py-1 bg-primary/10 text-primary rounded-full">
                     {selectedWork.category}
@@ -176,30 +339,19 @@ const Portfolio = () => {
                   <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
                     <div className="flex items-center gap-2 mb-3">
                       <Sparkles className="w-5 h-5 text-primary" />
-                      <h3 className="font-semibold">AI提示词</h3>
+                      <h3 className="font-semibold">模型参数</h3>
+
                     </div>
                     <p className="text-sm text-gray-700 font-mono bg-white p-4 rounded border border-gray-200">
                       {selectedWork.prompt}
                     </p>
                   </div>
                 )}
-                {(() => {
-                  const urls = getImageUrls(selectedWork.image_url);
-                  return (
-                    <a
-                      href={urls.download}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-primary text-primary py-2 text-sm font-medium hover:bg-primary/5"
-                    >
-                      下载原图
-                    </a>
-                  );
-                })()}
                 <button
                   onClick={() => setSelectedWork(null)}
                   className="mt-3 btn-secondary w-full"
                 >
+
                   关闭
                 </button>
 

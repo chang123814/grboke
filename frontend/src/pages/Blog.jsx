@@ -38,7 +38,17 @@ const Blog = () => {
     });
   };
 
+  const getExcerpt = (content) => {
+    if (!content) return '';
+    // 如果是 HTML，先粗略去掉标签
+    const withoutTags = content.replace(/<[^>]+>/g, ' ');
+    const clean = withoutTags.replace(/\s+/g, ' ').trim();
+    if (clean.length <= 120) return clean;
+    return clean.substring(0, 120) + '...';
+  };
+
   return (
+
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="container mx-auto px-4 max-w-6xl">
         {/* Header */}
@@ -94,7 +104,11 @@ const Blog = () => {
                         src={post.cover_image}
                         alt={post.title}
                         className="w-full h-64 md:h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
+
                     </div>
                   )}
                   <div className={`p-8 ${post.cover_image ? 'md:w-2/3' : 'w-full'}`}>
@@ -118,18 +132,43 @@ const Blog = () => {
                       </div>
                     </div>
                     <h2 className="text-2xl md:text-3xl font-bold mb-4 hover:text-primary transition-colors">
-                      <Link to={`/blog/${post.id}`}>{post.title}</Link>
+                      {post.wechat_url ? (
+                        <a
+                          href={post.wechat_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {post.title}
+                        </a>
+                      ) : (
+                        <Link to={`/blog/${post.id}`}>{post.title}</Link>
+                      )}
                     </h2>
+
                     <p className="text-gray-600 mb-6 line-clamp-3 leading-relaxed">
-                      {post.content.substring(0, 200)}...
+                      {getExcerpt(post.content)}
                     </p>
-                    <Link
-                      to={`/blog/${post.id}`}
-                      className="inline-flex items-center gap-2 text-primary font-medium hover:gap-3 transition-all"
-                    >
-                      阅读全文
-                      <ArrowRight className="w-5 h-5" />
-                    </Link>
+
+                    {post.wechat_url ? (
+                      <a
+                        href={post.wechat_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-primary font-medium hover:gap-3 transition-all"
+                      >
+                        阅读全文
+                        <ArrowRight className="w-5 h-5" />
+                      </a>
+                    ) : (
+                      <Link
+                        to={`/blog/${post.id}`}
+                        className="inline-flex items-center gap-2 text-primary font-medium hover:gap-3 transition-all"
+                      >
+                        阅读全文
+                        <ArrowRight className="w-5 h-5" />
+                      </Link>
+                    )}
+
                   </div>
                 </div>
               </motion.article>

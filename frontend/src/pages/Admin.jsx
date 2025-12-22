@@ -24,6 +24,65 @@ const defaultProfile = {
   phone: '',
 };
 
+const defaultPromptElements = {
+  styles: [
+    '写实主义',
+    '印象派',
+    '赛博朋克',
+    '蒸汽朋克',
+    '极简主义',
+    '超现实主义',
+    '复古风',
+    '国风（中式美学）',
+    '二次元（动漫风）',
+    '哥特风',
+    '波普艺术',
+    '洛可可风格',
+  ],
+  moods: ['宁静', '神秘', '欢快', '忧郁', '史诗', '梦幻', '治愈', '紧张', '复古', '温馨', '诡异', '热血'],
+  lighting: [
+    '柔和光线',
+    '戏剧性光线',
+    '霓虹灯',
+    '自然光',
+    '逆光',
+    '黄金时刻',
+    '侧光',
+    '顶光',
+    '暖光',
+    '冷光',
+    '柔光箱光',
+    '轮廓光',
+  ],
+  quality: [
+    '8K',
+    '超高清',
+    '精细细节',
+    '电影级',
+    '专业摄影',
+    '杰作',
+    '高清（1080P）',
+    '4K',
+    '商业级',
+    '艺术级',
+    '高质感',
+    '细腻画质',
+  ],
+  artists: [
+    '梵高',
+    '莫奈',
+    '毕加索',
+    '达·芬奇',
+    '克林姆特',
+    '霍珀',
+    '吉卜力风',
+    '宫崎骏',
+    '新海诚',
+    '安塞尔·亚当斯',
+    '班克斯（街头涂鸦）',
+  ],
+};
+
 const ADMIN_TOKEN_KEY = 'admin_token';
 
 const Admin = () => {
@@ -60,12 +119,20 @@ const Admin = () => {
     category: '',
     cover_image: '',
     content: '',
+    wechat_url: '',
   });
+  const [importSource, setImportSource] = useState('');
+  const [importing, setImporting] = useState(false);
+
 
   // 个人资料管理
   const [profile, setProfile] = useState(defaultProfile);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
+
+  const [promptElementsConfig, setPromptElementsConfig] = useState(defaultPromptElements);
+  const [savingPromptElements, setSavingPromptElements] = useState(false);
+  const [promptElementsMessage, setPromptElementsMessage] = useState('');
 
 
   useEffect(() => {
@@ -81,6 +148,7 @@ const Admin = () => {
     fetchWorks();
     fetchProfile();
     fetchPosts();
+    fetchPromptElementsConfig();
   }, [authed]);
 
   const handleLogin = async (e) => {
@@ -108,6 +176,7 @@ const Admin = () => {
     setAuthed(false);
     setWorks([]);
     setPosts([]);
+    setPromptElementsConfig(defaultPromptElements);
   };
 
   const fetchWorks = async () => {
@@ -125,6 +194,28 @@ const Admin = () => {
       setPosts(res.data || []);
     } catch (error) {
       console.error('获取文章失败:', error);
+    }
+  };
+
+  const handleSyncWechat = async () => {
+    try {
+      await axios.post('/api/admin/sync-wechat');
+      alert('已触发同步公众号文章任务，请稍后刷新文章列表');
+      fetchPosts();
+    } catch (error) {
+      alert('同步失败：' + (error?.response?.data?.error || error.message));
+    }
+  };
+
+  const fetchPromptElementsConfig = async () => {
+    try {
+      const res = await axios.get('/api/prompt-elements');
+      if (res.data) {
+        setPromptElementsConfig(res.data);
+      }
+    } catch (error) {
+      console.warn('获取快速元素配置失败，使用默认值:', error?.message || error);
+      setPromptElementsConfig(defaultPromptElements);
     }
   };
 
@@ -279,8 +370,44 @@ const Admin = () => {
       category: '',
       cover_image: '',
       content: '',
+      wechat_url: '',
     });
   };
+
+
+  const handleImportWechat = async () => {
+    const value = importSource.trim();
+    if (!value) {
+      alert('请先粘贴公众号文章链接或HTML内容');
+      return;
+    }
+
+    const isUrl = /^https?:\/\//i.test(value);
+    setImporting(true);
+    try {
+      const res = await axios.post('/api/admin/import-wechat', {
+        url: isUrl ? value : '',
+        html: isUrl ? '' : value,
+      });
+      const data = res.data || {};
+
+      setEditingPostId(null);
+      setPostForm({
+        title: data.title || '',
+        category: data.category || '公众号导入',
+        cover_image: data.cover_image || '',
+        content: data.content || '',
+        wechat_url: data.wechat_url || (isUrl ? value : ''),
+      });
+
+      alert('已从公众号导入内容，请在右侧表单中确认后再发布');
+    } catch (error) {
+      alert('导入失败：' + (error?.response?.data?.error || error.message));
+    } finally {
+      setImporting(false);
+    }
+  };
+
 
   const handlePostSubmit = async (e) => {
     e.preventDefault();
@@ -304,8 +431,10 @@ const Admin = () => {
       category: post.category || '',
       cover_image: post.cover_image || '',
       content: post.content || '',
+      wechat_url: post.wechat_url || '',
     });
   };
+
 
   const handleDeletePost = async (id) => {
     if (!window.confirm('确定要删除这篇文章吗？')) return;
@@ -319,6 +448,30 @@ const Admin = () => {
 
   const handleProfileChange = (field, value) => {
     setProfile((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSavePromptElements = async (e) => {
+    e.preventDefault();
+    setSavingPromptElements(true);
+    setPromptElementsMessage('');
+    try {
+      await axios.put('/api/prompt-elements', promptElementsConfig);
+      setPromptElementsMessage('保存成功');
+      setTimeout(() => setPromptElementsMessage(''), 2000);
+    } catch (error) {
+      console.error('保存快速元素配置失败:', error);
+      setPromptElementsMessage('保存失败，请稍后重试');
+    } finally {
+      setSavingPromptElements(false);
+    }
+  };
+
+  const handlePromptElementsChange = (field, value) => {
+    const items = value
+      .split(/[,，\r?\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setPromptElementsConfig((prev) => ({ ...prev, [field]: items }));
   };
 
   const handleSaveProfile = async (e) => {
@@ -426,6 +579,9 @@ const Admin = () => {
           }, {
             value: 'blog',
             label: '博客管理',
+          }, {
+            value: 'promptElements',
+            label: '快速元素配置',
           }, {
             value: 'profile',
             label: '个人资料',
@@ -629,11 +785,31 @@ const Admin = () => {
                     )}
                   </div>
                   {workForm.extra_images && (
-                    <p className="text-xs text-emerald-300">
-                      已上传 {workForm.extra_images.split('\n').filter(Boolean).length} 张图片
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-emerald-300">
+                        已上传 {workForm.extra_images.split('\n').filter(Boolean).length} 张图片
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {workForm.extra_images
+                          .split('\n')
+                          .filter(Boolean)
+                          .map((url, index) => (
+                            <div
+                              key={index}
+                              className="w-20 h-20 rounded-md overflow-hidden border border-slate-700 bg-slate-800"
+                            >
+                              <img
+                                src={url}
+                                alt={`附图${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ))}
+                      </div>
+                    </div>
                   )}
                 </div>
+
 
 
                 <div>
@@ -647,7 +823,8 @@ const Admin = () => {
                 </div>
 
                 <div>
-                  <label className="block text-emerald-100 mb-1">AI 提示词（可选）</label>
+                  <label className="block text-emerald-100 mb-1">模型参数（可选）</label>
+
                   <textarea
                     rows={4}
                     value={workForm.prompt}
@@ -697,6 +874,7 @@ const Admin = () => {
                 </button>
               </div>
 
+
               <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
                 {posts.length === 0 && (
                   <div className="text-xs text-emerald-300/70 py-6 text-center">
@@ -721,7 +899,13 @@ const Admin = () => {
                     <p className="text-xs text-emerald-200/70 line-clamp-2 mb-2">
                       {post.content}
                     </p>
+                    {post.wechat_url && (
+                      <div className="text-[10px] text-emerald-300 mb-1">
+                        已配置评论跳转链接
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-xs">
+
                       <button
                         type="button"
                         onClick={() => handleEditPost(post)}
@@ -751,6 +935,29 @@ const Admin = () => {
                 {editingPostId ? '编辑文章' : '新建文章'}
               </h2>
               <form onSubmit={handlePostSubmit} className="space-y-3 text-sm">
+                <div className="p-3 rounded-lg bg-slate-800/70 border border-slate-700 mb-2">
+                  <label className="block text-emerald-100 mb-1 text-xs">从微信公众号导入</label>
+                  <textarea
+                    rows={3}
+                    value={importSource}
+                    onChange={(e) => setImportSource(e.target.value)}
+                    className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                    placeholder="粘贴公众号文章链接（https://mp.weixin.qq.com/ 开头），或整篇文章HTML源码"
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-[11px] text-emerald-300/80 pr-2">
+                      仅支持你本人公众号的公开文章，导入后可在下方编辑再发布。
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleImportWechat}
+                      disabled={importing}
+                      className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60"
+                    >
+                      {importing ? '导入中…' : '从公众号导入'}
+                    </button>
+                  </div>
+                </div>
                 <div>
                   <label className="block text-emerald-100 mb-1">标题</label>
                   <input
@@ -786,6 +993,20 @@ const Admin = () => {
                 </div>
 
                 <div>
+                  <label className="block text-emerald-100 mb-1">评论跳转链接（微信公众号文章）</label>
+                  <input
+                    type="url"
+                    value={postForm.wechat_url}
+                    onChange={(e) => setPostForm({ ...postForm, wechat_url: e.target.value })}
+                    className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="例如：https://mp.weixin.qq.com/ 开头的文章链接"
+                  />
+                  <p className="mt-1 text-xs text-emerald-300/80">
+                    若留空，前台评论按钮会提示“暂未配置评论链接”，不会发起跳转。
+                  </p>
+                </div>
+
+                <div>
                   <label className="block text-emerald-100 mb-1">正文内容（支持 Markdown）</label>
                   <textarea
                     rows={8}
@@ -795,6 +1016,7 @@ const Admin = () => {
                     placeholder="直接写正文，支持 Markdown 标题、列表、加粗等标记。"
                   />
                 </div>
+
 
                 <div className="flex items-center justify-between pt-2">
                   <button
@@ -814,6 +1036,94 @@ const Admin = () => {
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {tab === 'promptElements' && (
+          <div className="card bg-slate-900/80 border border-emerald-800/60 p-4 md:p-6 max-w-3xl mb-8">
+            <h2 className="text-lg font-semibold text-emerald-50 mb-4 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-700/80 text-xs">
+                提示词
+              </span>
+              快速添加元素配置
+            </h2>
+            <form onSubmit={handleSavePromptElements} className="space-y-4 text-sm">
+              <p className="text-xs text-emerald-300/80">
+                推荐使用中文逗号分隔标签（也兼容换行），保存后会应用到前台“AI提示词工具 → 快速添加元素”区域。
+              </p>
+              <div>
+                <label className="block text-emerald-100 mb-1">风格（styles）</label>
+                <textarea
+                  rows={3}
+                  value={promptElementsConfig.styles.join('， ')}
+                  onChange={(e) => handlePromptElementsChange('styles', e.target.value)}
+                  className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-emerald-100 mb-1">氛围（moods）</label>
+                <textarea
+                  rows={3}
+                  value={promptElementsConfig.moods.join('， ')}
+                  onChange={(e) => handlePromptElementsChange('moods', e.target.value)}
+                  className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-emerald-100 mb-1">艺术家名字（artists）</label>
+                <textarea
+                  rows={3}
+                  value={(promptElementsConfig.artists || []).join('， ')}
+                  onChange={(e) => handlePromptElementsChange('artists', e.target.value)}
+                  className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-emerald-100 mb-1">光线（lighting）</label>
+                <textarea
+                  rows={3}
+                  value={promptElementsConfig.lighting.join('， ')}
+                  onChange={(e) => handlePromptElementsChange('lighting', e.target.value)}
+                  className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-emerald-100 mb-1">光线（lighting）</label>
+                <textarea
+                  rows={3}
+                  value={promptElementsConfig.lighting.join('， ')}
+                  onChange={(e) => handlePromptElementsChange('lighting', e.target.value)}
+                  className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-emerald-100 mb-1">质量（quality）</label>
+                <textarea
+                  rows={3}
+                  value={promptElementsConfig.quality.join('， ')}
+                  onChange={(e) => handlePromptElementsChange('quality', e.target.value)}
+                  className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                />
+              </div>
+              <div className="flex items-center justify-end pt-2">
+                {promptElementsMessage && (
+                  <span
+                    className={`text-xs mr-3 ${
+                      promptElementsMessage === '保存成功' ? 'text-emerald-300' : 'text-red-300'
+                    }`}
+                  >
+                    {promptElementsMessage}
+                  </span>
+                )}
+                <button
+                  type="submit"
+                  disabled={savingPromptElements}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-60"
+                >
+                  <Save className="w-4 h-4" /> {savingPromptElements ? '保存中...' : '保存元素配置'}
+                </button>
+              </div>
+            </form>
           </div>
         )}
 

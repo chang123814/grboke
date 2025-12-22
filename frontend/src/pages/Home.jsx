@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
+
   Palette,
   Wand2,
   BookOpen,
@@ -12,33 +13,80 @@ import {
   Twitter,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
 } from 'lucide-react';
+
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import useLogoImage from '../hooks/useLogoImage';
+
+const MAX_FEATURED_WORKS = 7;
+
 
 const staticHighlightWorks = [
   {
+    id: null,
     title: '赛博霓虹之城',
+
     description: '以赛博朋克美学重构夜色城市，强调光影对比与细节刻画。',
     imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=900',
     tag: '代表作品 · 科幻城市',
   },
   {
+    id: null,
     title: '梦境森林之光',
+
     description: '以体积光与颗粒效果营造梦境般的奇幻森林空间。',
     imageUrl: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=900',
     tag: '代表作品 · 奇幻场景',
   },
   {
+    id: null,
     title: '抽象情绪流',
+
     description: '以色块与流动线条表现情绪张力与节奏感。',
     imageUrl: 'https://images.unsplash.com/photo-1534237710431-e2fc698436d0?w=900',
     tag: '代表作品 · 抽象艺术',
   },
+  {
+    id: null,
+    title: '逐光海岸',
+
+    description: '通过长曝光捕捉海平线与暮色交汇的柔和光晕。',
+    imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900',
+    tag: '代表作品 · 风光摄影',
+  },
+  {
+    id: null,
+    title: '机械花序',
+
+    description: '将工业零件与植物形态融合，呈现未来主义花束。',
+    imageUrl: 'https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=900',
+    tag: '代表作品 · 工业艺术',
+  },
+  {
+    id: null,
+    title: '星幕沙丘',
+
+    description: '在夜空下捕捉沙丘纹理与星轨形成的宇宙呼吸感。',
+    imageUrl: 'https://images.unsplash.com/photo-1500534314211-0a24cd03f2c0?w=900',
+    tag: '代表作品 · 宏观自然',
+  },
+  {
+    id: null,
+    title: '极简构筑',
+
+    description: '以几何体块与高对比光线构建极简主义建筑意象。',
+    imageUrl: 'https://images.unsplash.com/photo-1503389152951-9f343605f61e?w=900',
+    tag: '代表作品 · 建筑概念',
+  },
 ];
 
+
 const Home = () => {
+  const navigate = useNavigate();
   const features = [
+
     {
       icon: <Palette className="w-12 h-12" />,
       title: 'AI作品集',
@@ -62,9 +110,13 @@ const Home = () => {
     },
   ];
 
+  const logoUrl = useLogoImage();
   const [highlightWorks, setHighlightWorks] = useState(staticHighlightWorks);
   const [activeWorkIndex, setActiveWorkIndex] = useState(0);
+  const [isOrbitPaused, setIsOrbitPaused] = useState(false);
   const [profile, setProfile] = useState({
+
+
     display_name: '清寒 · AI 创作者',
     subtitle: 'AI Art · Prompt Engineering · Creative Coding',
     bio: '喜欢用算法与提示词构建叙事性的视觉世界，从赛博朋克城市到梦境森林，再到抽象情绪流，清寒居希望成为记录这些作品与灵感的安静角落。',
@@ -76,12 +128,16 @@ const Home = () => {
   });
 
   useEffect(() => {
+    if (!highlightWorks.length) return;
+    if (isOrbitPaused) return;
+
     const interval = setInterval(() => {
       setActiveWorkIndex((prev) => (prev + 1) % highlightWorks.length);
     }, 6000);
 
     return () => clearInterval(interval);
-  }, [highlightWorks.length]);
+  }, [highlightWorks.length, isOrbitPaused]);
+
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -98,19 +154,24 @@ const Home = () => {
     const fetchFeaturedWorks = async () => {
       try {
         const res = await axios.get('/api/portfolios', {
-          params: { featured: true, limit: 3 },
+          params: { featured: true, limit: MAX_FEATURED_WORKS },
         });
         const data = Array.isArray(res.data) ? res.data : [];
         if (data.length > 0) {
-          const mapped = data.map((item) => ({
-            title: item.title,
-            description: item.description,
-            imageUrl: item.image_url,
-            tag: `代表作品 · ${item.category || '作品'}`,
-          }));
+          const mapped = data
+            .slice(0, MAX_FEATURED_WORKS)
+            .map((item) => ({
+              id: item.id,
+              title: item.title,
+              description: item.description,
+              imageUrl: item.image_url,
+              tag: `代表作品 · ${item.category || '作品'}`,
+            }));
+
           setHighlightWorks(mapped);
           setActiveWorkIndex(0);
         }
+
       } catch (error) {
         console.warn('获取首页代表作品失败，将继续使用默认示例:', error?.message || error);
       }
@@ -128,13 +189,45 @@ const Home = () => {
     setActiveWorkIndex((prev) => (prev + 1) % highlightWorks.length);
   };
 
-  const activeWork = highlightWorks[activeWorkIndex];
+  const activeWork = highlightWorks[activeWorkIndex] || highlightWorks[0];
 
-  const orbitPositions = [
-    'top-0 left-1/2 -translate-x-1/2',
-    'bottom-6 left-3',
-    'bottom-6 right-3',
-  ];
+  const handleOrbitClick = (index) => {
+    const work = highlightWorks[index];
+    if (!work) return;
+    setActiveWorkIndex(index);
+    if (work.id) {
+      navigate(`/portfolio?focus=${work.id}`);
+    } else {
+      navigate('/portfolio');
+    }
+  };
+
+  const handleOrbitHover = (index) => {
+    setActiveWorkIndex(index);
+    setIsOrbitPaused(true);
+  };
+
+  const handleOrbitLeave = () => {
+    setIsOrbitPaused(false);
+  };
+
+
+  const getOrbitStyle = (index, total) => {
+
+    if (total <= 0) {
+      return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+    }
+    const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
+    const radiusPercent = 38;
+    const x = 50 + radiusPercent * Math.cos(angle);
+    const y = 50 + radiusPercent * Math.sin(angle);
+    return {
+      top: `${y}%`,
+      left: `${x}%`,
+      transform: 'translate(-50%, -50%)',
+    };
+  };
+
 
   return (
     <div className="min-h-screen">
@@ -170,24 +263,8 @@ const Home = () => {
       {/* Personal & Highlight Works Section */}
       <section className="py-16 bg-emerald-950/95">
         <div className="container mx-auto px-4 max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10"
-          >
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-3 text-emerald-50">关于清寒居</h2>
-              <p className="text-emerald-100/80 max-w-2xl">
-                {profile.bio}
-              </p>
-            </div>
-            <p className="text-sm text-emerald-200/80">
-              个人简介 · 联系方式 · 代表作品圆环展播
-            </p>
-          </motion.div>
-
           <div className="grid gap-8 lg:grid-cols-2 items-stretch">
+
             {/* 左侧：个人简介 + 联系方式合并区域 */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -197,10 +274,25 @@ const Home = () => {
               className="card p-6 md:p-8 flex flex-col bg-emerald-900/60 border border-emerald-700/60"
             >
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-2xl font-semibold">
-                  寒
+                <div className="w-16 h-16 rounded-full bg-white shadow-inner overflow-hidden">
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt="清寒居 Logo"
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-emerald-400">
+                      LOGO
+                    </div>
+                  )}
                 </div>
+
+
                 <div>
+
                   <div className="flex items-center gap-2 mb-1">
                     <User className="w-5 h-5 text-secondary" />
                     <h3 className="text-xl font-semibold text-emerald-50">{profile.display_name}</h3>
@@ -317,28 +409,53 @@ const Home = () => {
                   <div className="relative w-64 h-64 md:w-80 md:h-80">
                     <div className="absolute inset-6 rounded-full border border-emerald-700/60" />
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-primary to-secondary opacity-20 blur-xl" />
+                      <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-gradient-to-br from-primary/60 via-amber-300/40 to-secondary/60 opacity-70 blur-xl" />
+                      <div className="absolute flex flex-col items-center gap-1">
+                        <Sparkles className="w-8 h-8 md:w-10 md:h-10 text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.8)]" />
+                        <span className="mt-1 text-[11px] md:text-xs tracking-wide text-amber-100">精选代表作品</span>
+                      </div>
                     </div>
+
+
+
                     {/* 外圈绕圈运动 */}
-                    <div className="absolute inset-0 animate-[spin_24s_linear_infinite]">
+                    <div
+                      className="absolute inset-0 animate-[spin_24s_linear_infinite]"
+                      style={{ animationPlayState: isOrbitPaused ? 'paused' : 'running' }}
+                    >
                       {highlightWorks.map((work, index) => (
+
                         <button
                           key={work.title}
                           type="button"
-                          onClick={() => setActiveWorkIndex(index)}
-                          className={`absolute ${orbitPositions[index]} w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2 transition-all duration-300 ${
+                          onMouseEnter={() => handleOrbitHover(index)}
+                          onFocus={() => handleOrbitHover(index)}
+                          onMouseLeave={handleOrbitLeave}
+                          onBlur={handleOrbitLeave}
+                          onClick={() => handleOrbitClick(index)}
+
+
+
+                          className={`absolute w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden border-2 transition-all duration-300 ${
                             index === activeWorkIndex
                               ? 'border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)] scale-110'
                               : 'border-emerald-700/70 opacity-80 hover:opacity-100'
                           }`}
+                          style={getOrbitStyle(index, highlightWorks.length)}
                         >
+
                           {/* 图片做反向旋转，抵消外圈旋转，保证始终正向 */}
                           <img
                             src={work.imageUrl}
                             alt={work.title}
                             className="w-full h-full object-cover"
-                            style={{ animation: 'spin 24s linear infinite reverse' }}
+                            style={{
+                              animation: 'spin 24s linear infinite reverse',
+                              animationPlayState: isOrbitPaused ? 'paused' : 'running',
+                            }}
                           />
+
+
                         </button>
                       ))}
                     </div>
