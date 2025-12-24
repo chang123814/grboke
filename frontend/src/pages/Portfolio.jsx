@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, Sparkles, Heart } from 'lucide-react';
+import { Eye, Sparkles, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 
@@ -62,7 +62,33 @@ const Portfolio = () => {
   }, [portfolios, location.search]);
 
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!selectedWork) return;
+      
+      const baseUrls = [];
+      if (selectedWork.image_url) baseUrls.push(selectedWork.image_url);
+      if (selectedWork.extra_images) {
+        baseUrls.push(...selectedWork.extra_images.split('\n').filter(u => !!u.trim()));
+      }
+      const total = baseUrls.length;
+      if (total <= 1) return;
+
+      if (e.key === 'ArrowLeft') {
+        setSelectedImageIndex((prev) => (prev - 1 + total) % total);
+      } else if (e.key === 'ArrowRight') {
+        setSelectedImageIndex((prev) => (prev + 1) % total);
+      } else if (e.key === 'Escape') {
+        setSelectedWork(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedWork]);
+
   const fetchPortfolios = async () => {
+
     setLoading(true);
     try {
       const url = selectedCategory === 'all'
@@ -230,13 +256,43 @@ const Portfolio = () => {
                 const current = imageItems[selectedImageIndex] || imageItems[0];
 
                 return (
-                  <div className="relative bg-black rounded-t-2xl flex items-center justify-center">
+                  <div className="relative bg-black rounded-t-2xl flex items-center justify-center min-h-[400px]">
                     <img
                       src={current.full}
                       alt={selectedWork.title}
                       className="max-h-[70vh] w-auto object-contain rounded-t-2xl"
                     />
+
+                    {/* 左右切换按钮 */}
+                    {imageItems.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedImageIndex((prev) => (prev - 1 + imageItems.length) % imageItems.length);
+                          }}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors z-10 group"
+                          title="上一张"
+                        >
+                          <ChevronLeft className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedImageIndex((prev) => (prev + 1) % imageItems.length);
+                          }}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors z-10 group"
+                          title="下一张"
+                        >
+                          <ChevronRight className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                        </button>
+                      </>
+                    )}
+
                     {/* 水印 LOGO 条 */}
+
                     <div className="absolute right-4 bottom-4 select-none pointer-events-none">
                       <div className="flex items-center gap-1 rounded-full bg-gradient-to-r from-black/70 via-black/50 to-black/70 px-3 py-1 shadow-lg shadow-black/40 border border-white/10">
                         <span className="inline-block w-2 h-2 rounded-full bg-primary"></span>
