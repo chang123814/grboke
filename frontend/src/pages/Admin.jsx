@@ -31,7 +31,7 @@ const defaultPromptElements = {
     '赛博朋克',
     '蒸汽朋克',
     '极简主义',
-    '超现实主义',
+    '超 surrealism',
     '复古风',
     '国风（中式美学）',
     '二次元（动漫风）',
@@ -1116,15 +1116,6 @@ const Admin = () => {
                 />
               </div>
               <div>
-                <label className="block text-emerald-100 mb-1">光线（lighting）</label>
-                <textarea
-                  rows={3}
-                  value={promptElementsConfig.lighting.join('， ')}
-                  onChange={(e) => handlePromptElementsChange('lighting', e.target.value)}
-                  className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-emerald-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
-                />
-              </div>
-              <div>
                 <label className="block text-emerald-100 mb-1">质量（quality）</label>
                 <textarea
                   rows={3}
@@ -1259,4 +1250,18 @@ const Admin = () => {
                 )}
                 <button
                   type="submit"
-                  disabled={savingProfi
+                  disabled={savingProfile}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-60"
+                >
+                  <Save className="w-4 h-4" /> {savingProfile ? '保存中...' : '保存资料'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Admin;
