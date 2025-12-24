@@ -352,8 +352,18 @@ const Admin = () => {
     setPortfolioView('form');
   };
 
+  const handleRemoveCover = () => {
+    setWorkForm((prev) => ({ ...prev, image_url: '' }));
+  };
+
+  const handleRemoveExtraImage = (index) => {
+    const urls = workForm.extra_images.split('\n').filter(Boolean);
+    urls.splice(index, 1);
+    setWorkForm((prev) => ({ ...prev, extra_images: urls.join('\n') }));
+  };
 
   const handleDeleteWork = async (id) => {
+
     if (!window.confirm('确定要删除这条作品吗？')) return;
     try {
       await axios.delete(`/api/portfolios/${id}`);
@@ -760,14 +770,23 @@ const Admin = () => {
                     )}
                   </div>
                   {workForm.image_url && (
-                    <div className="w-32 h-20 rounded-md overflow-hidden border border-slate-700 mb-2">
+                    <div className="relative w-32 h-20 rounded-md overflow-hidden border border-slate-700 mb-2 group">
                       <img
                         src={workForm.image_url}
                         alt="封面预览"
                         className="w-full h-full object-cover"
                       />
+                      <button
+                        type="button"
+                        onClick={handleRemoveCover}
+                        className="absolute top-1 right-1 p-1 bg-red-600/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="删除封面"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
                     </div>
                   )}
+
                 </div>
 
                 <div>
@@ -789,23 +808,32 @@ const Admin = () => {
                       <p className="text-xs text-emerald-300">
                         已上传 {workForm.extra_images.split('\n').filter(Boolean).length} 张图片
                       </p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
                         {workForm.extra_images
                           .split('\n')
                           .filter(Boolean)
                           .map((url, index) => (
                             <div
                               key={index}
-                              className="w-20 h-20 rounded-md overflow-hidden border border-slate-700 bg-slate-800"
+                              className="relative w-20 h-20 rounded-md overflow-hidden border border-slate-700 bg-slate-800 group"
                             >
                               <img
                                 src={url}
                                 alt={`附图${index + 1}`}
                                 className="w-full h-full object-cover"
                               />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveExtraImage(index)}
+                                className="absolute top-1 right-1 p-1 bg-red-600/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="删除此图"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
                           ))}
                       </div>
+
                     </div>
                   )}
                 </div>
@@ -1231,19 +1259,4 @@ const Admin = () => {
                 )}
                 <button
                   type="submit"
-                  disabled={savingProfile}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-60"
-                >
-                  <Save className="w-4 h-4" /> {savingProfile ? '保存中...' : '保存资料'}
-                </button>
-              </div>
-
-            </form>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default Admin;
+                  disabled={savingProfi

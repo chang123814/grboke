@@ -1578,3 +1578,4 @@ initDb()
     console.error('数据库初始化失败:', error);
     process.exit(1);
   });
+
